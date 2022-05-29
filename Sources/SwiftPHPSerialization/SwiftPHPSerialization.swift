@@ -76,8 +76,18 @@ private func consumeString(_ iter: ArrayIterator<String.Element>) throws -> Stri
 public struct SwiftPHPSerialization {
   public private(set) var text = "Hello, World!"
   
-  private static func performSerialize(iter: ArrayIterator<String.Element>, preferInt: Bool = false) throws -> String {
+  private static func performSerialize(iter: ArrayIterator<String.Element>, preferInt: Bool = false, rootLevel: Bool) throws -> String {
     consumeWhitespaces(iter)
+    
+    func expectEOL() throws {
+      if !rootLevel {
+        return
+      }
+      consumeWhitespaces(iter)
+      if iter.hasNext {
+        throw SwiftPHPSerializationError.syntaxError
+      }
+    }
     
     let peeked = iter.peekNext()
     if peeked == "\"" {
@@ -94,6 +104,72 @@ public struct SwiftPHPSerialization {
       return "s:\(string.utf8.count - 2):\(string);"
     }
     
+    if peeked == "t" {
+      iter.next()
+      if iter.next() == "r" && iter.next() == "u" && iter.next() == "e" {
+        try expectEOL()
+        return "b:1;"
+      }
+      throw SwiftPHPSerializationError.syntaxError
+    }
+    if peeked == "f" {
+      iter.next()
+      if iter.next() == "a" && iter.next() == "l" && iter.next() == "s" && iter.next() == "e" {
+        try expectEOL()
+        return "b:0;"
+      }
+      throw SwiftPHPSerializationError.syntaxError
+    }
+    if peeked == "n" {
+      iter.next()
+      if iter.next() == "u" && iter.next() == "l" && iter.next() == "l" {
+        try expectEOL()
+        return "N;"
+      }
+      throw SwiftPHPSerializationError.syntaxError
+    }
+    if peeked == "[" {
+      iter.next()
+      var items: [String] = []
+      while true {
+        consumeWhitespaces(iter)
+        if !iter.hasNext || iter.peekNext() == "]" {
+          iter.next()
+          try expectEOL()
+          return "a:\(items.count / 2):{\(items.joined(separator: ""))}"
+        } else {
+          if iter.peekNext() == "," {
+            iter.next()
+          }
+          items.append("i:\(items.count / 2);")
+          items.append(try performSerialize(iter: iter, preferInt: false, rootLevel: false))
+        }
+      }
+    }
+    
+    if peeked == "{" {
+      iter.next()
+      var items: [String] = []
+      var preferInt = true
+      while true {
+        consumeWhitespaces(iter)
+        if !iter.hasNext || iter.peekNext() == "}" {
+          iter.next()
+          try expectEOL()
+          return "a:\(items.count / 2):{\(items.joined(separator: ""))}"
+        } else {
+          if iter.peekNext() == "," {
+            iter.next()
+          }
+          if iter.peekNext() == ":" {
+            iter.next()
+          }
+          items.append(try performSerialize(iter: iter, preferInt: preferInt, rootLevel: false))
+          preferInt = !preferInt
+        }
+      }
+    }
+    
     if let char = peeked, NUMBER_CHARS.contains(String(char)) {
       var numberString = ""
       while let nextChar = iter.next() {
@@ -108,84 +184,21 @@ public struct SwiftPHPSerialization {
       }
       let scientific = numberString.contains("e") || numberString.contains("E")
       let flag = scientific || numberString.contains(".") ? "d" : "i"
-//      if scientific, numberString.lowercased().starts(with: "0e"), let numberData = numberString.data(using: .utf8), let nativeJSON = try? JSONSerialization.jsonObject(with: numberData, options: .fragmentsAllowed), let nativeNumber = nativeJSON as? Double {
-//        let nativeNumberString = "\(nativeNumber)"
-//        return "d:\(nativeNumberString.uppercased());"
-//      }
+      if !["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"].contains(numberString.last) {
+        throw SwiftPHPSerializationError.syntaxError
+      }
       return "\(flag):\(numberString);"
-    }
-    
-    if iter.peekNext() == "t" {
-      iter.next()
-      iter.next()
-      iter.next()
-      iter.next()
-      return "b:1;"
-    }
-    if iter.peekNext() == "f" {
-      iter.next()
-      iter.next()
-      iter.next()
-      iter.next()
-      iter.next()
-      return "b:0;"
-    }
-    if iter.peekNext() == "n" {
-      iter.next()
-      iter.next()
-      iter.next()
-      iter.next()
-      return "N;"
-    }
-    if iter.peekNext() == "[" {
-      iter.next()
-      var items: [String] = []
-      while true {
-        consumeWhitespaces(iter)
-        if !iter.hasNext || iter.peekNext() == "]" {
-          iter.next()
-          return "a:\(items.count / 2):{\(items.joined(separator: ""))}"
-        } else {
-          if iter.peekNext() == "," {
-            iter.next()
-          }
-          items.append("i:\(items.count / 2);")
-          items.append(try performSerialize(iter: iter))
-        }
-      }
-    }
-    
-    if iter.peekNext() == "{" {
-      iter.next()
-      var items: [String] = []
-      var preferInt = true
-      while true {
-        consumeWhitespaces(iter)
-        if !iter.hasNext || iter.peekNext() == "}" {
-          iter.next()
-          return "a:\(items.count / 2):{\(items.joined(separator: ""))}"
-        } else {
-          if iter.peekNext() == "," {
-            iter.next()
-          }
-          if iter.peekNext() == ":" {
-            iter.next()
-          }
-          items.append(try performSerialize(iter: iter, preferInt: preferInt))
-          preferInt = !preferInt
-        }
-      }
     }
     
     if !iter.hasNext {
       return "s:0:\"\""
     }
     
-    return ""
+    throw SwiftPHPSerializationError.syntaxError
   }
   
   public static func serialize(_ json: String) throws -> String {
-    return try performSerialize(iter: ArrayIterator(Array(json)))
+    return try performSerialize(iter: ArrayIterator(Array(json)), preferInt: false, rootLevel: true)
   }
   
   private static func performUnserialize(iter: ArrayIterator<String.Element>, rootLevel: Bool) throws -> String {

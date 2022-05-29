@@ -15,6 +15,7 @@ final class SwiftPHPSerializationTests: XCTestCase {
     XCTAssertEqual(try! SwiftPHPSerialization.unserialize(#"s:1:"\";"#), #""\\""#)
     XCTAssertEqual(try! SwiftPHPSerialization.unserialize(#"s:1:"/";"#), #""/""#)
     XCTAssertEqual(try! SwiftPHPSerialization.unserialize(#"s:1:""";"#), #""\"""#)
+    XCTAssertEqual(try! SwiftPHPSerialization.unserialize(#"a:0:{}"#), #"{}"#)
     XCTAssertEqual(try! SwiftPHPSerialization.unserialize(#"a:3:{i:0;i:10;i:1;i:11;i:2;i:12;}"#), #"{"0":10,"1":11,"2":12}"#)
     XCTAssertEqual(try! SwiftPHPSerialization.unserialize(#"a:2:{s:3:"foo";i:4;s:3:"bar";i:2;}"#), #"{"foo":4,"bar":2}"#)
     XCTAssertEqual(try! SwiftPHPSerialization.unserialize(#"a:2:{i:1;s:4:"😄";i:0;a:1:{i:1;s:4:"😄";}}"#), #"{"1":"😄","0":{"1":"😄"}}"#)
@@ -24,6 +25,10 @@ final class SwiftPHPSerializationTests: XCTestCase {
 
   func testSerialize() throws {
     XCTAssertEqual(try! SwiftPHPSerialization.serialize("null"), "N;")
+    XCTAssertEqual(try! SwiftPHPSerialization.serialize("{}"), "a:0:{}")
+    XCTAssertEqual(try! SwiftPHPSerialization.serialize(" { }"), "a:0:{}")
+    XCTAssertEqual(try! SwiftPHPSerialization.serialize("[]"), "a:0:{}")
+    XCTAssertEqual(try! SwiftPHPSerialization.serialize("[ ] "), "a:0:{}")
     XCTAssertEqual(try! SwiftPHPSerialization.serialize("[null, null  ,null]"), "a:3:{i:0;N;i:1;N;i:2;N;}")
     XCTAssertEqual(try! SwiftPHPSerialization.serialize(" [  null, null  ,null] "), "a:3:{i:0;N;i:1;N;i:2;N;}")
     XCTAssertEqual(try! SwiftPHPSerialization.serialize(#"{ "1": 12, "2": 24  }"#), "a:2:{i:1;i:12;i:2;i:24;}")
@@ -53,6 +58,7 @@ final class SwiftPHPSerializationTests: XCTestCase {
 
     test(#"s:0:"";"#)
     test("N;")
+    test("a:0:{}")
     test("s:1:\"\t\";")
     test(#"s:1:"\";"#)
     test("b:1;")
@@ -91,5 +97,13 @@ final class SwiftPHPSerializationTests: XCTestCase {
     XCTAssertThrowsError(try SwiftPHPSerialization.unserialize(#"a:3:{i:0;i:10;i:1;i:11;i:2;i:12;};"#))
     XCTAssertThrowsError(try SwiftPHPSerialization.unserialize(#"b:2;"#))
     XCTAssertThrowsError(try SwiftPHPSerialization.unserialize(#"b:1;;"#))
+    XCTAssertThrowsError(try SwiftPHPSerialization.serialize(#"fewfewfewe"#))
+    XCTAssertThrowsError(try SwiftPHPSerialization.serialize(#"truee"#))
+    XCTAssertThrowsError(try SwiftPHPSerialization.serialize(#"nulll"#))
+    XCTAssertThrowsError(try SwiftPHPSerialization.serialize(#"""#))
+    XCTAssertThrowsError(try SwiftPHPSerialization.serialize(#"1."#))
+    XCTAssertThrowsError(try SwiftPHPSerialization.serialize(#"[]a"#))
+    XCTAssertThrowsError(try SwiftPHPSerialization.serialize(#"{}a"#))
+    XCTAssertThrowsError(try SwiftPHPSerialization.serialize(#";"#))
   }
 }
