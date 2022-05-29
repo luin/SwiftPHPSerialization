@@ -1,3 +1,3 @@
 # SwiftPHPSerialization
 
-A description of this package.
+Swift implementation of PHP's `serialize` and `unserialize`.
