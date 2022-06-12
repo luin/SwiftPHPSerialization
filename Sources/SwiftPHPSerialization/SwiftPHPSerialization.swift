@@ -232,7 +232,7 @@ public struct SwiftPHPSerialization {
           return Int(lengthString) ?? 0
         }
         
-        lengthString = lengthString + next
+        lengthString += next
       }
     }
     
@@ -267,7 +267,7 @@ public struct SwiftPHPSerialization {
             try expectEOL()
             return result
           }
-          result = result + next
+          result += next
         }
       case "s":
         try expectNext([":"])
@@ -302,7 +302,7 @@ public struct SwiftPHPSerialization {
           } else if nextChar == "\\" {
             escapedChar = #"\\"#
           }
-          result = result + escapedChar
+          result += escapedChar
           length -= nextChar.utf8.count
           
           if length == 0 {
